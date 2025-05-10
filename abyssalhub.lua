@@ -1,152 +1,212 @@
--- Destroy existing GUI
+-- Destroy existing GUI if it exists
 pcall(function() game.CoreGui:FindFirstChild("AbyssalHub"):Destroy() end)
 
--- GUI Setup
-local gui = Instance.new("ScreenGui")
-gui.Name = "AbyssalHub"
-gui.Parent = game.CoreGui
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
-local main = Instance.new("Frame")
-main.Name = "MainFrame"
-main.Size = UDim2.new(0, 300, 0, 220)
-main.Position = UDim2.new(0.35, 0, 0.35, 0)
-main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-main.BorderSizePixel = 0
-main.Parent = gui
+-- Variables
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local dragging
+local dragInput
+local dragStart
+local startPos
 
-local title = Instance.new("TextLabel")
-title.Text = "AbyssalHub - Round Tracker"
-title.Size = UDim2.new(1, 0, 0, 30)
-title.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.Parent = main
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AbyssalHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local minimize = Instance.new("TextButton")
-minimize.Text = "-"
-minimize.Size = UDim2.new(0, 30, 0, 30)
-minimize.Position = UDim2.new(1, -30, 0, 0)
-minimize.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-minimize.TextColor3 = Color3.fromRGB(255, 255, 255)
-minimize.Font = Enum.Font.GothamBold
-minimize.TextSize = 14
-minimize.Parent = main
+-- Main Frame
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 350, 0, 400)
+Frame.Position = UDim2.new(0.5, -175, 0.5, -200)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+Frame.Active = true
+Frame.Draggable = false -- We'll implement custom dragging
 
-local body = Instance.new("Frame")
-body.Name = "Body"
-body.Position = UDim2.new(0, 0, 0, 30)
-body.Size = UDim2.new(1, 0, 1, -30)
-body.BackgroundTransparency = 1
-body.Parent = main
+-- UICorner for rounded edges
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = Frame
 
-local input = Instance.new("TextBox")
-input.PlaceholderText = "Total/Live Rounds (e.g., 6/2)"
-input.Size = UDim2.new(1, -20, 0, 30)
-input.Position = UDim2.new(0, 10, 0, 10)
-input.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-input.TextColor3 = Color3.fromRGB(255, 255, 255)
-input.Font = Enum.Font.Gotham
-input.TextSize = 14
-input.Parent = body
+-- Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 40)
+TopBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = Frame
 
-local output = Instance.new("TextLabel")
-output.Text = "Waiting for input..."
-output.Size = UDim2.new(1, -20, 0, 50)
-output.Position = UDim2.new(0, 10, 0, 50)
-output.TextWrapped = true
-output.BackgroundTransparency = 1
-output.TextColor3 = Color3.fromRGB(255, 255, 255)
-output.Font = Enum.Font.Gotham
-output.TextSize = 14
-output.TextYAlignment = Enum.TextYAlignment.Top
-output.Parent = body
+local TopBarCorner = Instance.new("UICorner")
+TopBarCorner.CornerRadius = UDim.new(0, 10)
+TopBarCorner.Parent = TopBar
 
-local buttons = {}
-local state = { live = 0, total = 0 }
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "AbyssalHub - Round Tracker"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
 
-local function updateText()
-	local blank = state.total - state.live
-	local chance = state.total > 0 and (state.live / state.total * 100) or 0
-	output.Text = string.format("Live: %d\nBlank: %d\nChance: %.2f%%", state.live, blank, chance)
+-- Minimize Button
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -35, 0, 5)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+MinimizeButton.Text = "-"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.TextSize = 18
+MinimizeButton.Parent = TopBar
+
+local MinimizeCorner = Instance.new("UICorner")
+MinimizeCorner.CornerRadius = UDim.new(0, 5)
+MinimizeCorner.Parent = MinimizeButton
+
+-- Body Frame
+local Body = Instance.new("Frame")
+Body.Size = UDim2.new(1, 0, 1, -40)
+Body.Position = UDim2.new(0, 0, 0, 40)
+Body.BackgroundTransparency = 1
+Body.Parent = Frame
+
+-- Input Fields
+local TotalRoundsInput = Instance.new("TextBox")
+TotalRoundsInput.Size = UDim2.new(0.8, 0, 0, 30)
+TotalRoundsInput.Position = UDim2.new(0.1, 0, 0, 20)
+TotalRoundsInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+TotalRoundsInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+TotalRoundsInput.PlaceholderText = "Enter Total Rounds"
+TotalRoundsInput.Font = Enum.Font.SourceSans
+TotalRoundsInput.TextSize = 14
+TotalRoundsInput.Parent = Body
+
+local TotalRoundsCorner = Instance.new("UICorner")
+TotalRoundsCorner.CornerRadius = UDim.new(0, 5)
+TotalRoundsCorner.Parent = TotalRoundsInput
+
+local LiveRoundsInput = Instance.new("TextBox")
+LiveRoundsInput.Size = UDim2.new(0.8, 0, 0, 30)
+LiveRoundsInput.Position = UDim2.new(0.1, 0, 0, 60)
+LiveRoundsInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+LiveRoundsInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+LiveRoundsInput.PlaceholderText = "Enter Live Rounds"
+LiveRoundsInput.Font = Enum.Font.SourceSans
+LiveRoundsInput.TextSize = 14
+LiveRoundsInput.Parent = Body
+
+local LiveRoundsCorner = Instance.new("UICorner")
+LiveRoundsCorner.CornerRadius = UDim.new(0, 5)
+LiveRoundsCorner.Parent = LiveRoundsInput
+
+-- Start Button
+local StartButton = Instance.new("TextButton")
+StartButton.Size = UDim2.new(0.8, 0, 0, 30)
+StartButton.Position = UDim2.new(0.1, 0, 0, 100)
+StartButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+StartButton.Text = "Start"
+StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StartButton.Font = Enum.Font.SourceSansBold
+StartButton.TextSize = 14
+StartButton.Parent = Body
+
+local StartButtonCorner = Instance.new("UICorner")
+StartButtonCorner.CornerRadius = UDim.new(0, 5)
+StartButtonCorner.Parent = StartButton
+
+-- Probability Display
+local ProbabilityLabel = Instance.new("TextLabel")
+ProbabilityLabel.Size = UDim2.new(0.8, 0, 0, 60)
+ProbabilityLabel.Position = UDim2.new(0.1, 0, 0, 150)
+ProbabilityLabel.BackgroundTransparency = 1
+ProbabilityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ProbabilityLabel.Font = Enum.Font.SourceSans
+ProbabilityLabel.TextSize = 14
+ProbabilityLabel.TextWrapped = true
+ProbabilityLabel.Text = ""
+ProbabilityLabel.Visible = false
+ProbabilityLabel.Parent = Body
+
+-- Live Fired Button
+local LiveFiredButton = Instance.new("TextButton")
+LiveFiredButton.Size = UDim2.new(0.35, 0, 0, 30)
+LiveFiredButton.Position = UDim2.new(0.1, 0, 0, 220)
+LiveFiredButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+LiveFiredButton.Text = "Live Fired"
+LiveFiredButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+LiveFiredButton.Font = Enum.Font.SourceSansBold
+LiveFiredButton.TextSize = 14
+LiveFiredButton.Visible = false
+LiveFiredButton.Parent = Body
+
+local LiveFiredCorner = Instance.new("UICorner")
+LiveFiredCorner.CornerRadius = UDim.new(0, 5)
+LiveFiredCorner.Parent = LiveFiredButton
+
+-- Blank Fired Button
+local BlankFiredButton = Instance.new("TextButton")
+BlankFiredButton.Size = UDim2.new(0.35, 0, 0, 30)
+BlankFiredButton.Position = UDim2.new(0.55, 0, 0, 220)
+BlankFiredButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+BlankFiredButton.Text = "Blank Fired"
+BlankFiredButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+BlankFiredButton.Font = Enum.Font.SourceSansBold
+BlankFiredButton.TextSize = 14
+BlankFiredButton.Visible = false
+BlankFiredButton.Parent = Body
+
+local BlankFiredCorner = Instance.new("UICorner")
+BlankFiredCorner.CornerRadius = UDim.new(0, 5)
+BlankFiredCorner.Parent = BlankFiredButton
+
+-- Reset Button
+local ResetButton = Instance.new("TextButton")
+ResetButton.Size = UDim2.new(0.8, 0, 0, 30)
+ResetButton.Position = UDim2.new(0.1, 0, 0, 270)
+ResetButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+ResetButton.Text = "Reset"
+ResetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResetButton.Font = Enum.Font.SourceSansBold
+ResetButton.TextSize = 14
+ResetButton.Visible = false
+ResetButton.Parent = Body
+
+local ResetButtonCorner = Instance.new("UICorner")
+ResetButtonCorner.CornerRadius = UDim.new(0, 5)
+ResetButtonCorner.Parent = ResetButton
+
+-- Variables for tracking rounds
+local totalRounds = 0
+local liveRounds = 0
+
+-- Function to update probability display
+local function updateProbability()
+	if totalRounds > 0 then
+		local probability = (liveRounds / totalRounds) * 100
+		ProbabilityLabel.Text = string.format("Live Rounds: %d\nBlank Rounds: %d\nProbability of Live: %.2f%%", liveRounds, totalRounds - liveRounds, probability)
+	else
+		ProbabilityLabel.Text = "No rounds left."
+	end
 end
 
-local function addButton(text, posY, callback)
-	local btn = Instance.new("TextButton")
-	btn.Text = text
-	btn.Size = UDim2.new(0.45, 0, 0, 30)
-	btn.Position = posY
-	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	btn.Font = Enum.Font.Gotham
-	btn.TextSize = 14
-	btn.Parent = body
-	btn.MouseButton1Click:Connect(callback)
-	table.insert(buttons, btn)
-end
-
-input.FocusLost:Connect(function(enter)
-	if not enter then return end
-	local live, total = string.match(input.Text, "(%d+)%s*/%s*(%d+)")
-	live, total = tonumber(live), tonumber(total)
-	if live and total and live <= total then
-		state.live = live
-		state.total = total
-		updateText()
-	else
-		output.Text = "Invalid format. Example: 3/6"
-	end
-end)
-
-addButton("Live Fired", UDim2.new(0, 10, 0, 110), function()
-	if state.live > 0 and state.total > 0 then
-		state.live -= 1
-		state.total -= 1
-		updateText()
-	else
-		output.Text = "No rounds left."
-	end
-end)
-
-addButton("Blank Fired", UDim2.new(0.55, 10, 0, 110), function()
-	if state.total > 0 then
-		state.total -= 1
-		updateText()
-	else
-		output.Text = "No rounds left."
-	end
-end)
-
-addButton("Reset", UDim2.new(0, 10, 0, 150), function()
-	state.live = 0
-	state.total = 0
-	output.Text = "Waiting for input..."
-end)
-
--- Minimize
-local isMinimized = false
-minimize.MouseButton1Click:Connect(function()
-	isMinimized = not isMinimized
-	body.Visible = not isMinimized
-	minimize.Text = isMinimized and "+" or "-"
-end)
-
--- Dragging
-local dragging, offset
-title.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = true
-		offset = input.Position - main.Position
-	end
-end)
-title.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = false
-	end
-end)
-game:GetService("UserInputService").InputChanged:Connect(function(input)
-	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-		main.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
-	end
-end)
+-- Start Button functionality
+StartButton.MouseButton1Click:Connect(function()
+	local totalInput = tonumber(TotalRoundsInput.Text)
+	local liveInput = tonumber(LiveRoundsInput.Text)
+	if totalInput and liveInput and liveInput <= totalInput then
+		totalRounds = totalInput
+		liveRounds = liveInput
+		
+::contentReference[oaicite:4]{index=4}
+ 
